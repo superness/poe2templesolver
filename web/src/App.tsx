@@ -178,6 +178,8 @@ function App() {
             stats: {
               status: finalData.stats?.status || 'Complete',
               timeSeconds: finalData.stats?.time_seconds || data.duration || 0,
+              spy_cmd_valid: finalData.stats?.spy_cmd_valid,
+              spy_cmd_violation: finalData.stats?.spy_cmd_violation,
             },
             error: finalData.error,
             chainNames: finalData.chain_names,
@@ -828,6 +830,16 @@ function App() {
                   Corruption: {result.rooms.filter((r) => r.type === 'CORRUPTION_CHAMBER').length}
                 </div>
                 <div>Time: {result.stats.timeSeconds.toFixed(2)}s</div>
+                {result.stats.spy_cmd_valid !== undefined && (
+                  <div style={{ color: result.stats.spy_cmd_valid ? '#4a4' : '#f44' }}>
+                    SPY-CMD Check: {result.stats.spy_cmd_valid ? 'PASS' : 'FAIL'}
+                  </div>
+                )}
+                {result.stats.spy_cmd_violation && (
+                  <div style={{ color: '#f44', fontSize: '0.9em' }}>
+                    Violation: {result.stats.spy_cmd_violation}
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button className="export-btn" onClick={handleExport}>
@@ -972,36 +984,79 @@ function TempleGrid({ state, edges, roomValues, chainNames }: TempleGridProps) {
     }
   }
 
-  // Build chain stats
+  // Build chain stats with depth-ordered rooms
+  // First, compute distances from foyer using BFS on edges
+  const distances = new Map<string, number>();
+  if (edges && edges.length > 0) {
+    // Build adjacency graph
+    const graph = new Map<string, string[]>();
+    for (const edge of edges) {
+      const k1 = `${edge.from.x},${edge.from.y}`;
+      const k2 = `${edge.to.x},${edge.to.y}`;
+      if (!graph.has(k1)) graph.set(k1, []);
+      if (!graph.has(k2)) graph.set(k2, []);
+      graph.get(k1)!.push(k2);
+      graph.get(k2)!.push(k1);
+    }
+    // BFS from foyer
+    const foyerKey = `${FOYER_POS.x},${FOYER_POS.y}`;
+    distances.set(foyerKey, 0);
+    const queue = [foyerKey];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const currentDist = distances.get(current)!;
+      for (const neighbor of graph.get(current) || []) {
+        if (!distances.has(neighbor)) {
+          distances.set(neighbor, currentDist + 1);
+          queue.push(neighbor);
+        }
+      }
+    }
+  }
+
   const chainStats: { name: string; rooms: string[]; count: number; isUngrouped?: boolean }[] = [];
   if (chainNames && chainNames.length > 0) {
     for (let i = 0; i < chainNames.length; i++) {
-      const roomsInChain: string[] = [];
+      // Collect rooms with their positions and distances
+      const roomsWithDist: { abbrev: string; dist: number }[] = [];
       for (const room of state.rooms) {
         const r = room as Room & { chain?: number };
         if (r.chain === i) {
-          roomsInChain.push(ROOM_ABBREV[r.type] || r.type.slice(0, 2));
+          const key = `${r.position.x},${r.position.y}`;
+          const dist = distances.get(key) ?? 999;
+          roomsWithDist.push({
+            abbrev: ROOM_ABBREV[r.type] || r.type.slice(0, 2),
+            dist,
+          });
         }
       }
+      // Sort by distance (depth ascending = closest to foyer first)
+      roomsWithDist.sort((a, b) => a.dist - b.dist);
       chainStats.push({
         name: chainNames[i],
-        rooms: roomsInChain,
-        count: roomsInChain.length,
+        rooms: roomsWithDist.map(r => r.abbrev),
+        count: roomsWithDist.length,
       });
     }
     // Add ungrouped rooms (chain >= chainNames.length)
-    const ungroupedRooms: string[] = [];
+    const ungroupedWithDist: { abbrev: string; dist: number }[] = [];
     for (const room of state.rooms) {
       const r = room as Room & { chain?: number };
       if (r.chain === undefined || r.chain >= chainNames.length) {
-        ungroupedRooms.push(ROOM_ABBREV[r.type] || r.type.slice(0, 2));
+        const key = `${r.position.x},${r.position.y}`;
+        const dist = distances.get(key) ?? 999;
+        ungroupedWithDist.push({
+          abbrev: ROOM_ABBREV[r.type] || r.type.slice(0, 2),
+          dist,
+        });
       }
     }
-    if (ungroupedRooms.length > 0) {
+    if (ungroupedWithDist.length > 0) {
+      ungroupedWithDist.sort((a, b) => a.dist - b.dist);
       chainStats.push({
         name: 'Ungrouped',
-        rooms: ungroupedRooms,
-        count: ungroupedRooms.length,
+        rooms: ungroupedWithDist.map(r => r.abbrev),
+        count: ungroupedWithDist.length,
         isUngrouped: true,
       });
     }

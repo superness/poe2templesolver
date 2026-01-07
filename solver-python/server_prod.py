@@ -40,7 +40,7 @@ completed_solves_history = []  # For admin view
 app = Flask(__name__)
 
 # CORS
-default_origins = 'https://superness.github.io,http://localhost:5173,http://localhost:3000'
+default_origins = 'https://superness.github.io,http://localhost:5173,http://localhost:5174,http://localhost:3000'
 allowed_origins = os.environ.get('ALLOWED_ORIGINS', default_origins)
 if allowed_origins != '*':
     allowed_origins = [o.strip() for o in allowed_origins.split(',')]

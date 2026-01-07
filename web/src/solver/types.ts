@@ -132,6 +132,8 @@ export interface SolverResult {
   stats: {
     status: string;
     timeSeconds: number;
+    spy_cmd_valid?: boolean;
+    spy_cmd_violation?: string;
   };
   error?: string;
   chainNames?: string[];

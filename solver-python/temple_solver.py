@@ -281,6 +281,102 @@ def get_neighbors(x: int, y: int) -> List[Tuple[int, int]]:
     return neighbors
 
 
+def validate_spy_cmd_constraint(rooms: List[dict], edges: List[dict]) -> Tuple[bool, Optional[List[Tuple[int, int]]]]:
+    """
+    Validate SPY-CMD linear chain constraint.
+
+    Rule: In a linear chain (path of degree-2 nodes), SPY cannot come AFTER CMD.
+    - SPY → ... → CMD is VALID (SPY before CMD, closer to foyer)
+    - CMD → ... → SPY is INVALID (SPY after CMD, further from foyer)
+
+    Returns (is_valid, violation_path) where violation_path shows the invalid chain if found.
+    """
+    # Build adjacency graph from edges
+    graph = {}
+    for edge in edges:
+        a = (edge['from']['x'], edge['from']['y'])
+        b = (edge['to']['x'], edge['to']['y'])
+        if a not in graph:
+            graph[a] = set()
+        if b not in graph:
+            graph[b] = set()
+        graph[a].add(b)
+        graph[b].add(a)
+
+    # Build room type map
+    room_types = {}
+    for room in rooms:
+        pos = (room['position']['x'], room['position']['y']) if 'position' in room else (room['x'], room['y'])
+        room_types[pos] = room['type']
+
+    # Find CMD positions
+    cmd_positions = [pos for pos, rtype in room_types.items() if rtype == 'COMMANDER']
+
+    if not cmd_positions:
+        return True, None  # No CMD, no violation possible
+
+    # For each CMD, check if any SPY is reachable via linear path going AWAY from foyer
+    # We do BFS from CMD through degree-2 nodes, looking for SPY
+    # The direction "away from foyer" means we're going deeper into the tree
+
+    # First, compute distances from foyer to establish direction
+    from collections import deque
+    foyer = FOYER_POS
+    distances = {foyer: 0}
+    bfs_queue = deque([foyer])
+    while bfs_queue:
+        current = bfs_queue.popleft()
+        for neighbor in graph.get(current, set()):
+            if neighbor not in distances:
+                distances[neighbor] = distances[current] + 1
+                bfs_queue.append(neighbor)
+
+    # For each CMD, search for SPY that's further from foyer via linear path
+    for cmd_pos in cmd_positions:
+        if cmd_pos not in graph or cmd_pos not in distances:
+            continue
+
+        cmd_dist = distances[cmd_pos]
+
+        # BFS from CMD through degree-2 nodes, only going AWAY from foyer (increasing distance)
+        queue = [(cmd_pos, [cmd_pos])]
+        visited = {cmd_pos}
+
+        while queue:
+            current, path = queue.pop(0)
+            current_dist = distances.get(current, 0)
+
+            for neighbor in graph.get(current, set()):
+                if neighbor in visited:
+                    continue
+
+                neighbor_dist = distances.get(neighbor, 0)
+
+                # Only go away from foyer (increasing distance)
+                if neighbor_dist <= current_dist:
+                    continue
+
+                new_path = path + [neighbor]
+
+                # Check if this neighbor is SPY
+                if room_types.get(neighbor) == 'SPYMASTER':
+                    # Found SPY after CMD - check if path is linear
+                    is_linear = True
+                    for intermediate in path[1:]:  # Skip CMD itself
+                        if len(graph.get(intermediate, set())) > 2:
+                            is_linear = False
+                            break
+                    if is_linear:
+                        return False, new_path
+
+                # Continue through degree-2 nodes (linear chain)
+                if len(graph.get(neighbor, set())) == 2:
+                    visited.add(neighbor)
+                    queue.append((neighbor, new_path))
+
+    return True, None
+
+
 # =============================================================================
 # SOLVER
 # =============================================================================
@@ -310,6 +406,9 @@ class SolverInput:
 
     # Penalty per empty cell (encourages filling all cells)
     empty_penalty: int = 0
+
+    # Lazy SPY-CMD constraint - validate post-solve instead of pre-generating constraints
+    lazy_spy_cmd: bool = False
 
     def __post_init__(self):
         if self.existing_rooms is None:
@@ -341,22 +440,37 @@ class SolverOutput:
 class SolutionCallback(cp_model.CpSolverSolutionCallback):
     """Callback to capture intermediate solutions during solving."""
 
-    def __init__(self, variables: dict, on_solution=None):
+    def __init__(self, variables: dict, on_solution=None, lazy_spy_cmd=False):
         super().__init__()
         self.variables = variables  # Dict with all the variable refs we need
         self.on_solution = on_solution
+        self.lazy_spy_cmd = lazy_spy_cmd
         self.solution_count = 0
         self.best_score = -1
         self.best_solution = None
+        self.rejected_count = 0  # Track how many solutions failed SPY-CMD validation
 
     def on_solution_callback(self):
         self.solution_count += 1
         score = self.Value(self.variables['total_value'])
 
         if score > self.best_score:
-            self.best_score = score
             # Extract current solution
             solution = self._extract_solution()
+
+            # Validate SPY-CMD constraint if lazy mode
+            if self.lazy_spy_cmd:
+                is_valid, violation = validate_spy_cmd_constraint(
+                    solution['rooms'], solution['edges']
+                )
+                print(f"DEBUG: SPY-CMD validation: valid={is_valid}, violation={violation}, score={score}", flush=True)
+                if not is_valid:
+                    self.rejected_count += 1
+                    print(f"DEBUG: Rejected solution (score={score}) - SPY after CMD at {violation}", flush=True)
+                    # Skip this solution, don't update best
+                    return
+
+            self.best_score = score
             self.best_solution = solution
 
             if self.on_solution:
@@ -1227,11 +1341,13 @@ def solve_temple(input_data: SolverInput, on_solution=None, hints=None) -> Solve
     #
     # Implementation: For each cell, if it's between SPY and CMD (both adjacent),
     # it must have 3+ total connections (be a junction, not a linear link)
+    #
+    # If lazy_spy_cmd=True, skip this and validate post-solve instead
 
     spy_idx = ROOM_TYPE_TO_IDX.get('SPYMASTER')
     cmd_idx = ROOM_TYPE_TO_IDX.get('COMMANDER')
 
-    if spy_idx is not None and cmd_idx is not None:
+    if spy_idx is not None and cmd_idx is not None and not input_data.lazy_spy_cmd:
         # First: SPY and CMD cannot be directly adjacent
         for x in range(1, GRID_SIZE + 1):
             for y in range(1, GRID_SIZE + 1):
@@ -1548,8 +1664,12 @@ def solve_temple(input_data: SolverInput, on_solution=None, hints=None) -> Solve
             'chain_idx': chain_idx_vars,
             'chain_names': chain_names,
         }
-        callback = SolutionCallback(callback_vars, on_solution)
+        print(f"DEBUG: Creating callback with lazy_spy_cmd={input_data.lazy_spy_cmd}", flush=True)
+        callback = SolutionCallback(callback_vars, on_solution, lazy_spy_cmd=input_data.lazy_spy_cmd)
         status = solver.Solve(model, callback)
+        print(f"DEBUG: Solve complete. lazy_spy_cmd={input_data.lazy_spy_cmd}, rejected={callback.rejected_count}", flush=True)
+        if input_data.lazy_spy_cmd and callback.rejected_count > 0:
+            print(f"DEBUG: Lazy SPY-CMD rejected {callback.rejected_count} solutions")
     else:
         status = solver.Solve(model)
 
@@ -1558,6 +1678,61 @@ def solve_temple(input_data: SolverInput, on_solution=None, hints=None) -> Solve
     # =========================================================================
 
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        # If lazy_spy_cmd is enabled, use the callback's validated best_solution
+        # instead of extracting from raw solver values
+        if input_data.lazy_spy_cmd and on_solution and callback.best_solution:
+            validated = callback.best_solution
+            # Convert room format from callback (x,y) to expected format
+            rooms = []
+            for r in validated['rooms']:
+                room_data = {
+                    'type': r['type'],
+                    'tier': r['tier'],
+                    'x': r['x'],
+                    'y': r['y']
+                }
+                if 'chain' in r:
+                    room_data['chain'] = r['chain']
+                rooms.append(room_data)
+
+            paths = validated.get('paths', [])
+            edges = validated.get('edges', [])
+
+            # Double-check SPY-CMD validation on final result
+            final_valid, final_violation = validate_spy_cmd_constraint(rooms, edges)
+            if not final_valid:
+                print(f"WARNING: Final result failed SPY-CMD validation! Violation: {final_violation}")
+
+            # Track excluded rooms
+            included_positions = {(r['x'], r['y']) for r in rooms}
+            included_positions.update({(p['x'], p['y']) for p in paths})
+            excluded = []
+            for existing in input_data.existing_rooms:
+                pos = (existing['x'], existing['y'])
+                if pos not in included_positions and pos not in (FOYER_POS, architect_pos):
+                    excluded.append(existing)
+
+            return SolverOutput(
+                success=True,
+                optimal=(status == cp_model.OPTIMAL),
+                score=validated['score'],
+                rooms=rooms,
+                paths=paths,
+                edges=edges,
+                stats={
+                    'status': solver.StatusName(status),
+                    'time_seconds': solver.WallTime(),
+                    'branches': solver.NumBranches(),
+                    'conflicts': solver.NumConflicts(),
+                    'lazy_rejected': callback.rejected_count,
+                    'spy_cmd_valid': final_valid,
+                    'spy_cmd_violation': str(final_violation) if final_violation else None,
+                },
+                excluded_rooms=excluded if excluded else None,
+                chain_names=chain_names if chain_names else None
+            )
+
+        # Standard extraction from solver values
         rooms = []
         paths = []
         included_positions = set()
@@ -1613,6 +1788,11 @@ def solve_temple(input_data: SolverInput, on_solution=None, hints=None) -> Solve
                     'to': {'x': pos_b[0], 'y': pos_b[1]}
                 })
 
+        # Always validate SPY-CMD constraint on final result
+        spy_cmd_valid, spy_cmd_violation = validate_spy_cmd_constraint(rooms, edges)
+        if not spy_cmd_valid:
+            print(f"WARNING: Final result has SPY after CMD! Violation: {spy_cmd_violation}", flush=True)
+
         return SolverOutput(
             success=True,
             optimal=(status == cp_model.OPTIMAL),
@@ -1625,6 +1805,8 @@ def solve_temple(input_data: SolverInput, on_solution=None, hints=None) -> Solve
                 'time_seconds': solver.WallTime(),
                 'branches': solver.NumBranches(),
                 'conflicts': solver.NumConflicts(),
+                'spy_cmd_valid': spy_cmd_valid,
+                'spy_cmd_violation': str(spy_cmd_violation) if spy_cmd_violation else None,
             },
             excluded_rooms=excluded if excluded else None,
             chain_names=chain_names if chain_names else None
