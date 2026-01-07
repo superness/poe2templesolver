@@ -3,8 +3,6 @@ import type { TempleState, SolverConfig, SolverResult, Room, Edge, RoomValues, R
 import { GRID_SIZE, FOYER_POS, DEFAULT_ROOM_VALUES, CHAIN_PRESETS } from './solver/types';
 import { parseSulozorUrl, exportToSulozorUrl } from './lib/sulozor-parser';
 import { ROOM_ABBREV } from './solver/room-rules';
-import RulesValidation from './pages/RulesValidation';
-import RuleExplorer from './pages/RuleExplorer';
 import './App.css';
 
 // API URL: /api in production (same server), localhost:5000 in dev
@@ -24,12 +22,6 @@ const DEFAULT_CONFIG: SolverConfig = {
 };
 
 function App() {
-  const [page, setPage] = useState<'solver' | 'rules' | 'explorer'>(() => {
-    const hash = window.location.hash;
-    if (hash === '#/rules') return 'rules';
-    if (hash === '#/explorer') return 'explorer';
-    return 'solver';
-  });
   const [url, setUrl] = useState('');
   const [state, setState] = useState<TempleState | null>(null);
   const [config, setConfig] = useState<SolverConfig>(DEFAULT_CONFIG);
@@ -76,16 +68,23 @@ function App() {
     }
   };
 
-  // Handle hash changes for routing
+  // Load temple from URL parameter on mount (e.g., ?t=ENCODED_DATA)
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash;
-      if (hash === '#/rules') setPage('rules');
-      else if (hash === '#/explorer') setPage('explorer');
-      else setPage('solver');
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    const params = new URLSearchParams(window.location.search);
+    const templeParam = params.get('t');
+    if (templeParam) {
+      try {
+        // Try to parse as Sulozor-style encoded data
+        const fakeUrl = `https://sulozor.github.io/poe2-temple/?t=${templeParam}`;
+        const parsed = parseSulozorUrl(fakeUrl);
+        if (parsed && parsed.state) {
+          setState(parsed.state);
+          setUrl(fakeUrl);
+        }
+      } catch (e) {
+        console.error('Failed to parse temple from URL param:', e);
+      }
+    }
   }, []);
 
   const checkApi = useCallback(async () => {
@@ -302,27 +301,20 @@ function App() {
     ? { architect: state!.architect, rooms: result.rooms, paths: result.paths }
     : state;
 
-  // Show rules validation page if on #/rules
-  if (page === 'rules') {
-    return <RulesValidation />;
-  }
-
-  // Show rule explorer page if on #/explorer
-  if (page === 'explorer') {
-    return <RuleExplorer />;
-  }
+  // Generate shareable URL with temple data
+  const getShareUrl = () => {
+    if (!state) return null;
+    const exportUrl = exportToSulozorUrl(state);
+    const params = new URL(exportUrl).searchParams.get('t');
+    if (params) {
+      return `${window.location.origin}${window.location.pathname}?t=${params}`;
+    }
+    return null;
+  };
 
   return (
     <div className="app">
       <h1>POE2 Temple Solver</h1>
-      <div style={{ marginBottom: '8px' }}>
-        <a href="#/explorer" style={{ color: '#8f8', fontSize: '0.9em', marginRight: '16px' }}>
-          Explore & Test Rules
-        </a>
-        <a href="#/rules" style={{ color: '#88f', fontSize: '0.9em' }}>
-          View Confirmed Rules
-        </a>
-      </div>
       <div className={`api-status ${apiStatus}`}>
         {apiStatus === 'unknown' && 'Solver: checking...'}
         {apiStatus === 'ok' && 'Solver: connected'}
@@ -797,9 +789,24 @@ function App() {
                 </div>
                 <div>Time: {result.stats.timeSeconds.toFixed(2)}s</div>
               </div>
-              <button className="export-btn" onClick={handleExport}>
-                Open in Sulozor
-              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button className="export-btn" onClick={handleExport}>
+                  Open in Sulozor
+                </button>
+                <button
+                  className="export-btn"
+                  style={{ background: '#5a7a5a' }}
+                  onClick={() => {
+                    const shareUrl = getShareUrl();
+                    if (shareUrl) {
+                      navigator.clipboard.writeText(shareUrl);
+                      alert('Link copied to clipboard!');
+                    }
+                  }}
+                >
+                  Copy Link
+                </button>
+              </div>
             </div>
           )}
         </>
