@@ -543,13 +543,14 @@ def diagnose_infeasibility(input_data: SolverInput) -> List[str]:
     return hints
 
 
-def solve_temple(input_data: SolverInput, on_solution=None) -> SolverOutput:
+def solve_temple(input_data: SolverInput, on_solution=None, hints=None) -> SolverOutput:
     """
     Solve for optimal temple layout using CP-SAT.
 
     Args:
         input_data: Solver configuration and constraints
         on_solution: Optional callback called with each new best solution found
+        hints: Optional list of hint dicts with {x, y, type, in_temple} for warm start
 
     The model:
     - Variables: room_type[x,y], tier[x,y], in_temple[x,y], parent_dir[x,y]
@@ -1500,6 +1501,26 @@ def solve_temple(input_data: SolverInput, on_solution=None) -> SolverOutput:
     # =========================================================================
     # SOLVE
     # =========================================================================
+
+    # =========================================================================
+    # APPLY ML HINTS (warm start)
+    # =========================================================================
+    if hints:
+        hint_count = 0
+        for hint in hints:
+            pos = (hint['x'], hint['y'])
+            if pos in in_temple and pos not in (FOYER_POS, architect_pos):
+                # Hint that this cell should be in temple
+                if hint.get('in_temple', True):
+                    model.AddHint(in_temple[pos], 1)
+                    hint_count += 1
+
+                # Hint the room type if provided
+                if 'type' in hint and pos in room_type:
+                    type_idx = ROOM_TYPE_TO_IDX.get(hint['type'], 0)
+                    if type_idx > 0:  # Don't hint EMPTY
+                        model.AddHint(room_type[pos], type_idx)
+        print(f"DEBUG: Applied {hint_count} ML hints")
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = input_data.max_time_seconds
