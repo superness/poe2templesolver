@@ -9,11 +9,14 @@ bind = "127.0.0.1:5000"
 # Workers - 1 for single vCPU (CPU-bound solver)
 workers = 1
 
-# Worker class - sync is fine for long-running CPU tasks
-worker_class = "sync"
+# Threads - allow concurrent requests while solve is running
+threads = 4
 
-# Timeout - solver can take up to 60s, give buffer
-timeout = 120
+# Worker class - gthread for threaded workers
+worker_class = "gthread"
+
+# Timeout - solver can take up to 120s, give buffer
+timeout = 180
 
 # Keep-alive
 keepalive = 5
@@ -36,5 +39,6 @@ proc_name = "temple-solver"
 graceful_timeout = 30
 
 # Max requests per worker before restart (prevents memory leaks)
-max_requests = 100
-max_requests_jitter = 20
+# Set high to avoid restart mid-solve - solves generate many poll requests
+max_requests = 10000
+max_requests_jitter = 1000

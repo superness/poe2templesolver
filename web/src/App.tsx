@@ -8,6 +8,7 @@ import './App.css';
 
 // API URL: /api in production (same server), localhost:5000 in dev
 const API_URL = import.meta.env.DEV ? 'http://localhost:5000' : '/api';
+const MAX_SOLVE_TIME = parseInt(import.meta.env.VITE_MAX_SOLVE_TIME || '120');
 
 const DEFAULT_CONFIG: SolverConfig = {
   minSpymasters: 8,
@@ -516,10 +517,10 @@ function App() {
                 <input
                   type="number"
                   min={5}
-                  max={300}
+                  max={MAX_SOLVE_TIME}
                   value={config.maxTimeSeconds}
                   onChange={(e) =>
-                    setConfig({ ...config, maxTimeSeconds: parseInt(e.target.value) || 30 })
+                    setConfig({ ...config, maxTimeSeconds: Math.min(MAX_SOLVE_TIME, parseInt(e.target.value) || 30) })
                   }
                 />
               </label>
