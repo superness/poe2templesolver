@@ -187,6 +187,7 @@ h2 {
   display: flex;
   gap: 12px;
   align-items: flex-end;
+  flex-wrap: wrap;
 }
 
 .add-chain-btn {
@@ -246,7 +247,7 @@ h2 {
 .room-type-checkboxes {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 6px 16px;
 }
 
 .room-type-checkbox {
@@ -371,6 +372,12 @@ button:disabled {
   border-radius: 4px;
   color: #fff;
   width: 100%;
+  transition: border-color 0.2s;
+}
+
+.config-grid input[type='number']:focus {
+  outline: none;
+  border-color: #c9a860;
 }
 
 .config-grid label.checkbox {
@@ -477,13 +484,17 @@ button:disabled {
 
 .cell-value {
   position: absolute;
-  bottom: 1px;
-  right: 2px;
-  font-size: 8px;
+  bottom: 0;
+  right: 1px;
+  font-size: 7px;
   color: #8f8;
   font-weight: normal;
   z-index: 6;
   opacity: 0.8;
+  line-height: 1;
+  padding: 1px;
+  background: rgba(26, 26, 26, 0.7);
+  border-radius: 2px;
 }
 
 .conn-line {
@@ -578,8 +589,9 @@ button:disabled {
 }
 
 .api-status button {
-  padding: 4px 10px;
+  padding: 6px 12px;
   font-size: 12px;
+  vertical-align: middle;
 }
 
 /* Chain colors */
@@ -624,6 +636,7 @@ button:disabled {
   margin: 3px 0;
   border-radius: 3px;
   font-size: 13px;
+  flex-wrap: wrap;
 }
 
 .chain-stat.chain-0 {
@@ -677,4 +690,126 @@ button:disabled {
 .cell.ungrouped {
   background: #2a3a4a !important;
   border: 2px solid #4a6a8a;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .app {
+    padding: 10px;
+  }
+
+  h1 {
+    font-size: 1.5em;
+    margin-bottom: 15px;
+  }
+
+  .input-section,
+  .config-section,
+  .grid-section,
+  .result-section,
+  .room-values-section,
+  .chains-section {
+    padding: 12px;
+    margin-bottom: 15px;
+  }
+
+  .config-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .url-input {
+    flex-direction: column;
+  }
+
+  .url-input input {
+    width: 100%;
+  }
+
+  .temple-grid {
+    max-width: 100%;
+  }
+
+  .cell {
+    font-size: 9px;
+  }
+
+  .cell-value {
+    font-size: 6px;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .chain-name {
+    min-width: 100px;
+  }
+
+  .chain-stat {
+    font-size: 12px;
+  }
+
+  .room-values-grid {
+    max-width: 100%;
+  }
+
+  .preset-select label {
+    width: 100%;
+  }
+
+  .preset-select select {
+    max-width: 100%;
+  }
+}
+
+/* Better cell visibility */
+.cell:hover {
+  outline: 1px solid #c9a860;
+  z-index: 10;
+}
+
+/* Improve grid navigation for screen readers */
+.temple-grid {
+  position: relative;
+}
+
+/* Subtle animation for solving state */
+.solve-btn:disabled {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Rules Validation and Rule Explorer pages */
+.rules-validation,
+.rule-explorer {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.rules-validation h1,
+.rule-explorer h1 {
+  color: #c9a860;
+}
+
+/* Responsive table handling */
+@media (max-width: 768px) {
+  .rules-validation table,
+  .rule-explorer table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .rules-validation table td,
+  .rule-explorer table td {
+    min-width: 80px;
+  }
 }

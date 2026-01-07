@@ -94,6 +94,7 @@ export const CHAIN_PRESETS: Record<string, ChainConfig[]> = {
       name: 'Generator',
       roomTypes: ['GENERATOR'],
       roomCounts: { GENERATOR: { min: 1, max: 1 } },
+      startingRoom: 'GENERATOR',
     },
   ],
   'balanced': [
