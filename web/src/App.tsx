@@ -7,8 +7,8 @@ import RulesValidation from './pages/RulesValidation';
 import RuleExplorer from './pages/RuleExplorer';
 import './App.css';
 
-// API URL: use env var in production (for GitHub Pages pointing to droplet), localhost in dev
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// API URL: /api in production (same server), localhost:5000 in dev
+const API_URL = import.meta.env.DEV ? 'http://localhost:5000' : '/api';
 
 const DEFAULT_CONFIG: SolverConfig = {
   minSpymasters: 8,
