@@ -301,10 +301,14 @@ function App() {
     ? { architect: state!.architect, rooms: result.rooms, paths: result.paths }
     : state;
 
-  // Generate shareable URL with temple data
+  // Generate shareable URL with temple data (uses result if available)
   const getShareUrl = () => {
     if (!state) return null;
-    const exportUrl = exportToSulozorUrl(state);
+    // Use result if available, otherwise use current state
+    const finalState = result
+      ? { architect: state.architect, rooms: result.rooms, paths: result.paths }
+      : state;
+    const exportUrl = exportToSulozorUrl(finalState);
     const params = new URL(exportUrl).searchParams.get('t');
     if (params) {
       return `${window.location.origin}${window.location.pathname}?t=${params}`;
