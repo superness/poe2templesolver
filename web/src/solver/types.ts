@@ -88,7 +88,12 @@ export const CHAIN_PRESETS: Record<string, ChainConfig[]> = {
       name: 'Golem/Corruption Chain',
       roomTypes: ['GOLEM_WORKS', 'SMITHY', 'THAUMATURGE', 'CORRUPTION_CHAMBER', 'ALCHEMY_LAB', 'ARMOURY'],
       roomCounts: { GOLEM_WORKS: { min: 2 }, CORRUPTION_CHAMBER: { min: 3 }, THAUMATURGE: { min: 2 } },
-      startingRoom: 'GENERATOR',
+      startingRoom: 'THAUMATURGE',
+    },
+    {
+      name: 'Generator',
+      roomTypes: ['GENERATOR'],
+      roomCounts: { GENERATOR: { min: 1, max: 1 } },
     },
   ],
   'balanced': [

@@ -47,6 +47,34 @@ function App() {
   const [chainPreset, setChainPreset] = useState<string>('none');
   const [chains, setChains] = useState<ChainConfig[]>([]);
   const [showChains, setShowChains] = useState(false);
+  const [customPresets, setCustomPresets] = useState<Record<string, ChainConfig[]>>(() => {
+    try {
+      const saved = localStorage.getItem('temple-solver-presets');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  // Save custom presets to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('temple-solver-presets', JSON.stringify(customPresets));
+  }, [customPresets]);
+
+  const saveCurrentAsPreset = () => {
+    const name = prompt('Enter preset name:');
+    if (name && name.trim()) {
+      setCustomPresets({ ...customPresets, [name.trim()]: JSON.parse(JSON.stringify(chains)) });
+      setChainPreset(`custom:${name.trim()}`);
+    }
+  };
+
+  const deleteCustomPreset = (name: string) => {
+    const newPresets = { ...customPresets };
+    delete newPresets[name];
+    setCustomPresets(newPresets);
+    if (chainPreset === `custom:${name}`) {
+      setChainPreset('custom');
+    }
+  };
 
   // Handle hash changes for routing
   useEffect(() => {
@@ -546,6 +574,11 @@ function App() {
                           setChains([]);
                         } else if (preset === 'custom') {
                           // Keep current chains
+                        } else if (preset.startsWith('custom:')) {
+                          const name = preset.slice(7);
+                          if (customPresets[name]) {
+                            setChains(JSON.parse(JSON.stringify(customPresets[name])));
+                          }
                         } else if (CHAIN_PRESETS[preset]) {
                           setChains(JSON.parse(JSON.stringify(CHAIN_PRESETS[preset])));
                         }
@@ -553,9 +586,12 @@ function App() {
                     >
                       <option value="none">None (auto)</option>
                       <option value="spymaster-focus">Spymaster Focus (10-12 SPY + Corruption)</option>
-                      <option value="golem-corruption">Golem/Corruption (SPY chain + Generator start)</option>
+                      <option value="golem-corruption">Golem/Corruption (SPY + Golem/Corr + GE)</option>
                       <option value="balanced">Balanced (3 chains)</option>
-                      <option value="custom">Custom</option>
+                      {Object.keys(customPresets).map(name => (
+                        <option key={name} value={`custom:${name}`}>★ {name}</option>
+                      ))}
+                      <option value="custom">Custom (unsaved)</option>
                     </select>
                   </label>
                   <button
@@ -571,6 +607,24 @@ function App() {
                   >
                     + Add Chain
                   </button>
+                  {chains.length > 0 && (
+                    <button
+                      className="add-chain-btn"
+                      onClick={saveCurrentAsPreset}
+                      style={{ background: '#3a4a5a' }}
+                    >
+                      Save Preset
+                    </button>
+                  )}
+                  {chainPreset.startsWith('custom:') && (
+                    <button
+                      className="remove-chain-btn"
+                      onClick={() => deleteCustomPreset(chainPreset.slice(7))}
+                      title="Delete this preset"
+                    >
+                      🗑
+                    </button>
+                  )}
                 </div>
 
                 {chains.length > 0 && (
