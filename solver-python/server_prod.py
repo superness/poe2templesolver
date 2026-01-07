@@ -25,6 +25,7 @@ MAX_QUEUE_SIZE = int(os.environ.get('MAX_QUEUE_SIZE', 10))
 RATE_LIMIT_SECONDS = int(os.environ.get('RATE_LIMIT_SECONDS', 30))
 MAX_SOLVE_TIME = int(os.environ.get('MAX_SOLVE_TIME', 60))
 MAX_HISTORY = 50  # Keep last N completed solves
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'temple-admin')  # Set in production!
 
 # Server stats
 SERVER_START_TIME = time.time()
@@ -136,6 +137,11 @@ def status():
 @app.route('/admin', methods=['GET'])
 def admin():
     """Admin endpoint - detailed server stats and active solves."""
+    # Check authentication
+    auth_key = request.args.get('key') or request.headers.get('X-Admin-Key')
+    if auth_key != ADMIN_PASSWORD:
+        return jsonify({"error": "Unauthorized"}), 401
+
     now = time.time()
     with state_lock:
         # Build active solves list with details

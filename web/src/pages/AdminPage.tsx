@@ -2,6 +2,17 @@ import { useState, useEffect } from 'react';
 
 const API_URL = import.meta.env.DEV ? 'http://localhost:5000' : '/api';
 
+// Get admin key from URL or localStorage
+function getAdminKey(): string {
+  const params = new URLSearchParams(window.location.search);
+  const urlKey = params.get('key');
+  if (urlKey) {
+    localStorage.setItem('admin-key', urlKey);
+    return urlKey;
+  }
+  return localStorage.getItem('admin-key') || '';
+}
+
 interface ActiveSolve {
   job_id: string;
   elapsed_seconds: number;
@@ -44,14 +55,21 @@ function formatTime(timestamp: number): string {
 export default function AdminPage() {
   const [data, setData] = useState<AdminData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [adminKey, setAdminKey] = useState(getAdminKey);
+  const [keyInput, setKeyInput] = useState('');
 
   useEffect(() => {
+    if (!adminKey) return;
+
     const fetchData = async () => {
       try {
-        const resp = await fetch(`${API_URL}/admin`);
+        const resp = await fetch(`${API_URL}/admin?key=${encodeURIComponent(adminKey)}`);
         if (resp.ok) {
           setData(await resp.json());
           setError(null);
+        } else if (resp.status === 401) {
+          setError('Invalid admin key');
+          setData(null);
         } else {
           setError('Failed to fetch admin data');
         }
@@ -63,7 +81,58 @@ export default function AdminPage() {
     fetchData();
     const interval = setInterval(fetchData, 2000); // Poll every 2s
     return () => clearInterval(interval);
-  }, []);
+  }, [adminKey]);
+
+  const handleLogin = () => {
+    localStorage.setItem('admin-key', keyInput);
+    setAdminKey(keyInput);
+  };
+
+  // Show login form if no key
+  if (!adminKey || error === 'Invalid admin key') {
+    return (
+      <div style={{ padding: 40, fontFamily: 'monospace', background: '#1a1a1a', minHeight: '100vh', color: '#ccc' }}>
+        <h1 style={{ color: '#c9a860' }}>Temple Solver Admin</h1>
+        <div style={{ marginTop: 30 }}>
+          <input
+            type="password"
+            placeholder="Admin key"
+            value={keyInput}
+            onChange={(e) => setKeyInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+            style={{
+              padding: '10px 15px',
+              fontSize: 16,
+              background: '#2a2a2a',
+              border: '1px solid #444',
+              borderRadius: 4,
+              color: '#fff',
+              width: 250,
+            }}
+          />
+          <button
+            onClick={handleLogin}
+            style={{
+              marginLeft: 10,
+              padding: '10px 20px',
+              fontSize: 16,
+              background: '#c9a860',
+              color: '#000',
+              border: 'none',
+              borderRadius: 4,
+              cursor: 'pointer',
+            }}
+          >
+            Login
+          </button>
+        </div>
+        {error && <div style={{ color: '#f88', marginTop: 15 }}>{error}</div>}
+        <div style={{ marginTop: 20, color: '#666', fontSize: 13 }}>
+          Access with: ?admin=true&key=YOUR_KEY
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 20, fontFamily: 'monospace', background: '#1a1a1a', minHeight: '100vh', color: '#ccc' }}>

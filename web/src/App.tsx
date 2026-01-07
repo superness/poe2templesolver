@@ -824,6 +824,12 @@ function App() {
       )}
 
       {error && <div className="error">{error}</div>}
+
+      <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #333', textAlign: 'center', fontSize: 12, color: '#666' }}>
+        <a href="https://github.com/superness/poe2templesolver" target="_blank" rel="noopener noreferrer" style={{ color: '#666' }}>
+          Source
+        </a>
+      </div>
     </div>
   );
 }
