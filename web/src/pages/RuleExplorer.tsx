@@ -1223,7 +1223,7 @@ export default function RuleExplorer() {
   const completedCount = Object.keys(results).length;
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="rule-explorer" style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', boxSizing: 'border-box' }}>
       <h1>Temple Rule Explorer</h1>
       <p style={{ color: '#888', marginBottom: '20px' }}>
         Systematically test and verify ALL possible room connection rules.
@@ -1231,7 +1231,7 @@ export default function RuleExplorer() {
         Click each link to open in Sulozor, then mark the result.
       </p>
 
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
         <button
           onClick={() => setCategory('foyer')}
           style={{

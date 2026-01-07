@@ -112,7 +112,7 @@ export default function RulesValidation() {
   };
 
   return (
-    <div className="rules-validation" style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="rules-validation" style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', boxSizing: 'border-box' }}>
       <h1>Verified Temple Room Rules</h1>
       <p style={{ marginBottom: '20px', color: '#888' }}>
         All rules verified through systematic testing in Sulozor's explorer tool.
