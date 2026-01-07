@@ -1,0 +1,32 @@
+{
+  "name": "poe2-temple-solver",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Decision-support tool for Path of Exile 2 Temple of Atziri room placements",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "temple-solver": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli/index.js",
+    "test": "node --test src/**/*.test.ts",
+    "solve": "npx ts-node src/cli/index.ts"
+  },
+  "keywords": [
+    "poe2",
+    "path-of-exile-2",
+    "temple",
+    "atziri",
+    "solver",
+    "optimizer"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "puppeteer": "^24.34.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

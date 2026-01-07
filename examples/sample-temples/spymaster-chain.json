@@ -1,0 +1,12 @@
+{
+  "architect": { "x": 5, "y": 6 },
+  "rooms": [
+    { "type": "GARRISON", "tier": 1, "position": { "x": 5, "y": 2 } },
+    { "type": "SPYMASTER", "tier": 1, "position": { "x": 4, "y": 2 } },
+    { "type": "GARRISON", "tier": 2, "position": { "x": 5, "y": 3 } },
+    { "type": "SPYMASTER", "tier": 1, "position": { "x": 4, "y": 3 } },
+    { "type": "GARRISON", "tier": 1, "position": { "x": 5, "y": 4 } },
+    { "type": "SPYMASTER", "tier": 2, "position": { "x": 4, "y": 4 } }
+  ],
+  "paths": []
+}

@@ -1,0 +1,680 @@
+.app {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+h1 {
+  color: #c9a860;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+h2 {
+  color: #888;
+  font-size: 1.2em;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 5px;
+}
+
+.input-section,
+.config-section,
+.grid-section,
+.result-section,
+.room-values-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #1a1a1a;
+  border-radius: 8px;
+}
+
+/* Room Values Editor */
+.room-values-section h2 {
+  user-select: none;
+}
+
+.room-values-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 400px;
+}
+
+.room-values-header {
+  display: grid;
+  grid-template-columns: 80px repeat(3, 60px);
+  gap: 8px;
+  font-size: 12px;
+  color: #888;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #333;
+}
+
+.room-values-row {
+  display: grid;
+  grid-template-columns: 80px repeat(3, 60px);
+  gap: 8px;
+  align-items: center;
+}
+
+.room-type-name {
+  font-size: 12px;
+  color: #aaa;
+  font-family: monospace;
+}
+
+.room-values-row input {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 12px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #fff;
+  text-align: center;
+}
+
+.room-values-row input:focus {
+  outline: none;
+  border-color: #c9a860;
+}
+
+.reset-values-btn {
+  margin-top: 12px;
+  padding: 6px 12px;
+  font-size: 12px;
+  background: #444;
+}
+
+/* Chain Configuration */
+.chains-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #1a1a1a;
+  border-radius: 8px;
+}
+
+.chains-section h2 {
+  user-select: none;
+}
+
+.chains-config {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.preset-select label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #aaa;
+  font-size: 14px;
+}
+
+.preset-select select {
+  padding: 8px 12px;
+  font-size: 14px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #fff;
+  width: 100%;
+  max-width: 400px;
+}
+
+.chains-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chain-config {
+  background: #252525;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.chain-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  color: #c9a860;
+}
+
+.chain-header .starting-room {
+  font-size: 12px;
+  color: #8f8;
+  font-weight: normal;
+}
+
+.chain-rooms,
+.chain-counts {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.chain-rooms .label,
+.chain-counts .label {
+  color: #888;
+  min-width: 90px;
+}
+
+.chain-rooms .room-list {
+  color: #aaa;
+  font-family: monospace;
+}
+
+.chain-counts .counts-list {
+  color: #8cf;
+  font-family: monospace;
+}
+
+.chain-hint,
+.no-types-hint {
+  color: #666;
+  font-size: 13px;
+  font-style: italic;
+}
+
+.preset-select {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.add-chain-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+  background: #3a5a3a;
+}
+
+.add-chain-btn:hover {
+  background: #4a6a4a;
+}
+
+.chain-name-input {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-weight: bold;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #c9a860;
+}
+
+.remove-chain-btn {
+  padding: 4px 10px;
+  font-size: 16px;
+  background: #5a3a3a;
+  color: #f88;
+  line-height: 1;
+}
+
+.remove-chain-btn:hover {
+  background: #6a4a4a;
+}
+
+.chain-field {
+  margin-top: 10px;
+}
+
+.chain-field .label {
+  display: block;
+  color: #888;
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.chain-field select {
+  padding: 6px 10px;
+  font-size: 13px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #fff;
+  min-width: 200px;
+}
+
+.room-type-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.room-type-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.room-type-checkbox input {
+  width: 14px;
+  height: 14px;
+}
+
+.room-counts-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.room-count-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #aaa;
+}
+
+.room-count-name {
+  min-width: 40px;
+  color: #8cf;
+  font-family: monospace;
+}
+
+.room-count-row input {
+  width: 50px;
+  padding: 4px 6px;
+  font-size: 12px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #fff;
+  text-align: center;
+}
+
+.room-count-row input::placeholder {
+  color: #555;
+}
+
+.url-input {
+  display: flex;
+  gap: 10px;
+}
+
+.url-input input {
+  flex: 1;
+  padding: 10px 15px;
+  font-size: 14px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #fff;
+}
+
+.url-input input:focus {
+  outline: none;
+  border-color: #c9a860;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 14px;
+  background: #c9a860;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover:not(:disabled) {
+  background: #dab970;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.warnings {
+  margin-top: 10px;
+  padding: 10px;
+  background: #2a2a2a;
+  border-radius: 4px;
+  color: #888;
+  font-size: 13px;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.config-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #aaa;
+  font-size: 14px;
+}
+
+.config-grid input[type='number'] {
+  padding: 8px 12px;
+  font-size: 14px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #fff;
+  width: 100%;
+}
+
+.config-grid label.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.config-grid input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+}
+
+.solve-btn {
+  width: 100%;
+  padding: 15px;
+  font-size: 16px;
+}
+
+.temple-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 2px;
+  background: #333;
+  padding: 2px;
+  border-radius: 4px;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: bold;
+  font-family: monospace;
+  background: #1a1a1a;
+  color: #666;
+  border-radius: 2px;
+}
+
+.cell.foyer {
+  background: #2a4a2a;
+  color: #4a8;
+}
+
+.cell.atziri {
+  background: #4a2a2a;
+  color: #a44;
+}
+
+.cell.architect {
+  background: #2a2a4a;
+  color: #88f;
+}
+
+.cell.path {
+  background: #2a2a2a;
+  color: #666;
+}
+
+.cell.room {
+  background: #2a3a3a;
+  color: #8aa;
+}
+
+.cell.room.tier-1 {
+  background: #2a3030;
+  color: #777;
+}
+
+.cell.room.tier-2 {
+  background: #3a4040;
+  color: #9aa;
+}
+
+.cell.room.tier-3 {
+  background: #4a5050;
+  color: #bcc;
+}
+
+.cell.spymaster {
+  background: #3a3a2a !important;
+  color: #cc8 !important;
+}
+
+.cell.corruption {
+  background: #4a2a3a !important;
+  color: #c8a !important;
+}
+
+/* Connection lines - draw from center to edge */
+.cell {
+  position: relative;
+  overflow: visible;
+}
+
+.cell-content {
+  position: relative;
+  z-index: 5;
+}
+
+.cell-value {
+  position: absolute;
+  bottom: 1px;
+  right: 2px;
+  font-size: 8px;
+  color: #8f8;
+  font-weight: normal;
+  z-index: 6;
+  opacity: 0.8;
+}
+
+.conn-line {
+  position: absolute;
+  background: #0f0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Vertical lines (up/down) */
+.conn-line.up {
+  left: 50%;
+  bottom: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: calc(50% + 2px);
+}
+
+.conn-line.down {
+  left: 50%;
+  top: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: calc(50% + 2px);
+}
+
+/* Horizontal lines (left/right) */
+.conn-line.left {
+  right: 50%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: calc(50% + 2px);
+  height: 4px;
+}
+
+.conn-line.right {
+  left: 50%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: calc(50% + 2px);
+  height: 4px;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.metrics div {
+  padding: 10px;
+  background: #2a2a2a;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.export-btn {
+  width: 100%;
+}
+
+.error {
+  margin-top: 20px;
+  padding: 15px;
+  background: #4a2a2a;
+  border: 1px solid #a44;
+  border-radius: 4px;
+  color: #f88;
+}
+
+.api-status {
+  text-align: center;
+  padding: 8px 15px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.api-status.unknown {
+  background: #2a2a3a;
+  color: #88a;
+}
+
+.api-status.ok {
+  background: #2a3a2a;
+  color: #4a8;
+}
+
+.api-status.error {
+  background: #3a2a2a;
+  color: #a66;
+}
+
+.api-status button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+/* Chain colors */
+.cell.chain-0 {
+  background: #2a4a3a !important;
+  border: 2px solid #4a8a6a;
+}
+
+.cell.chain-1 {
+  background: #4a3a2a !important;
+  border: 2px solid #8a6a4a;
+}
+
+.cell.chain-2 {
+  background: #3a2a4a !important;
+  border: 2px solid #6a4a8a;
+}
+
+.cell.chain-3 {
+  background: #2a3a4a !important;
+  border: 2px solid #4a6a8a;
+}
+
+.cell.chain-4 {
+  background: #4a2a3a !important;
+  border: 2px solid #8a4a6a;
+}
+
+/* Chain stats display */
+.chain-stats {
+  margin-top: 15px;
+  padding: 10px;
+  background: #1a1a1a;
+  border-radius: 4px;
+}
+
+.chain-stat {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 8px;
+  margin: 3px 0;
+  border-radius: 3px;
+  font-size: 13px;
+}
+
+.chain-stat.chain-0 {
+  background: #2a4a3a;
+  border-left: 3px solid #4a8a6a;
+}
+
+.chain-stat.chain-1 {
+  background: #4a3a2a;
+  border-left: 3px solid #8a6a4a;
+}
+
+.chain-stat.chain-2 {
+  background: #3a2a4a;
+  border-left: 3px solid #6a4a8a;
+}
+
+.chain-stat.chain-3 {
+  background: #2a3a4a;
+  border-left: 3px solid #4a6a8a;
+}
+
+.chain-stat.chain-4 {
+  background: #4a2a3a;
+  border-left: 3px solid #8a4a6a;
+}
+
+.chain-name {
+  font-weight: bold;
+  color: #fff;
+  min-width: 150px;
+}
+
+.chain-count {
+  color: #8f8;
+  min-width: 80px;
+}
+
+.chain-rooms {
+  color: #aaa;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.chain-stat.ungrouped {
+  background: #333;
+  border-left: 3px solid #666;
+}
+
+/* Ungrouped cells on grid */
+.cell.ungrouped {
+  background: #2a3a4a !important;
+  border: 2px solid #4a6a8a;
+}
