@@ -11,6 +11,7 @@ import threading
 import time
 import uuid
 import queue
+import multiprocessing
 from collections import OrderedDict
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -23,7 +24,7 @@ from temple_solver import SolverInput, solve_temple
 MAX_CONCURRENT_SOLVES = int(os.environ.get('MAX_CONCURRENT_SOLVES', 1))
 MAX_QUEUE_SIZE = int(os.environ.get('MAX_QUEUE_SIZE', 10))
 RATE_LIMIT_SECONDS = int(os.environ.get('RATE_LIMIT_SECONDS', 30))
-MAX_SOLVE_TIME = int(os.environ.get('MAX_SOLVE_TIME', 60))
+MAX_SOLVE_TIME = int(os.environ.get('MAX_SOLVE_TIME', 3600))
 RESULT_TTL_SECONDS = 300  # Keep completed results for 5 minutes
 MAX_HISTORY = 50  # Keep last N completed solves for admin
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'temple-admin')
@@ -135,7 +136,7 @@ def cleanup_old_jobs():
     with state_lock:
         to_remove = []
         for job_id, job in jobs.items():
-            if job["status"] in ("complete", "error"):
+            if job["status"] in ("complete", "error", "aborted"):
                 completed_at = job.get("completed_at", 0)
                 if now - completed_at > RESULT_TTL_SECONDS:
                     to_remove.append(job_id)
@@ -143,8 +144,55 @@ def cleanup_old_jobs():
             del jobs[job_id]
 
 
+def solver_subprocess(solver_input, result_queue, solution_queue):
+    """
+    Run solver in a separate process.
+    Sends intermediate solutions via solution_queue.
+    Sends final result via result_queue.
+    """
+    def on_solution(solution):
+        try:
+            solution_queue.put_nowait(solution)
+        except:
+            pass  # Queue full, skip this update
+
+    try:
+        result = solve_temple(solver_input, on_solution=on_solution)
+
+        # Build output dict
+        paths_out = []
+        for p in result.paths:
+            if isinstance(p, dict):
+                paths_out.append(p)
+            else:
+                paths_out.append({"x": p[0], "y": p[1]})
+
+        output = {
+            "success": result.success,
+            "optimal": result.optimal,
+            "score": result.score,
+            "rooms": result.rooms,
+            "paths": paths_out,
+            "edges": result.edges or [],
+            "stats": result.stats,
+        }
+
+        if result.error:
+            output["error"] = result.error
+        if result.excluded_rooms:
+            output["excluded_rooms"] = result.excluded_rooms
+        if result.chain_names:
+            output["chain_names"] = result.chain_names
+
+        result_queue.put({"status": "complete", "result": output})
+
+    except Exception as e:
+        import traceback
+        result_queue.put({"status": "error", "error": str(e), "traceback": traceback.format_exc()})
+
+
 def worker_thread():
-    """Background worker that processes jobs from queue."""
+    """Background worker that processes jobs from queue using subprocesses."""
     global total_solves
 
     while True:
@@ -165,48 +213,95 @@ def worker_thread():
                 # Mark as solving
                 job["status"] = "solving"
                 job["started_at"] = time.time()
-
-            app.logger.info(f"[{job_id}] Starting solve")
-
-            # Callback to store intermediate solutions
-            def on_new_solution(solution, jid=job_id):
-                with state_lock:
-                    if jid in jobs and jobs[jid]["status"] == "solving":
-                        jobs[jid]["best_solution"] = solution
-                        app.logger.info(f"[{jid}] New best: score={solution['score']}")
-
-            try:
                 solver_input = job["solver_input"]
-                result = solve_temple(solver_input, on_solution=on_new_solution)
 
-                # Build response
-                paths_out = []
-                for p in result.paths:
-                    if isinstance(p, dict):
-                        paths_out.append(p)
-                    else:
-                        paths_out.append({"x": p[0], "y": p[1]})
+            app.logger.info(f"[{job_id}] Starting solve (subprocess)")
 
-                output = {
-                    "success": result.success,
-                    "optimal": result.optimal,
-                    "score": result.score,
-                    "rooms": result.rooms,
-                    "paths": paths_out,
-                    "edges": result.edges or [],
-                    "stats": result.stats,
-                    "job_id": job_id,
-                }
+            # Create queues for communication with subprocess
+            result_queue = multiprocessing.Queue()
+            solution_queue = multiprocessing.Queue(maxsize=10)
 
-                if result.error:
-                    output["error"] = result.error
-                if result.excluded_rooms:
-                    output["excluded_rooms"] = result.excluded_rooms
-                if result.chain_names:
-                    output["chain_names"] = result.chain_names
+            # Start solver subprocess
+            proc = multiprocessing.Process(
+                target=solver_subprocess,
+                args=(solver_input, result_queue, solution_queue)
+            )
+            proc.start()
 
+            # Store process reference for abort
+            with state_lock:
+                if job_id in jobs:
+                    jobs[job_id]["process"] = proc
+
+            # Poll for updates until process completes or is aborted
+            output = None
+            aborted = False
+
+            while proc.is_alive():
+                # Check for abort
                 with state_lock:
-                    if job_id in jobs:
+                    if job_id in jobs and jobs[job_id]["status"] == "aborted":
+                        app.logger.info(f"[{job_id}] Aborting subprocess")
+                        proc.terminate()
+                        proc.join(timeout=2)
+                        if proc.is_alive():
+                            proc.kill()
+                            proc.join(timeout=1)
+                        aborted = True
+                        break
+
+                # Check for intermediate solutions
+                try:
+                    while True:
+                        solution = solution_queue.get_nowait()
+                        with state_lock:
+                            if job_id in jobs and jobs[job_id]["status"] == "solving":
+                                jobs[job_id]["best_solution"] = solution
+                                app.logger.info(f"[{job_id}] New best: score={solution['score']}")
+                except:
+                    pass  # Queue empty
+
+                time.sleep(0.1)  # Small sleep to avoid busy-waiting
+
+            # Process completed or was killed
+            proc.join(timeout=1)
+
+            # Get final result if not aborted
+            if not aborted:
+                try:
+                    final = result_queue.get_nowait()
+                    if final["status"] == "complete":
+                        output = final["result"]
+                        output["job_id"] = job_id
+                    else:
+                        # Error in subprocess
+                        with state_lock:
+                            if job_id in jobs:
+                                jobs[job_id]["status"] = "error"
+                                jobs[job_id]["completed_at"] = time.time()
+                                jobs[job_id]["error"] = final.get("error", "Unknown error")
+                        app.logger.error(f"[{job_id}] Subprocess error: {final.get('error')}")
+                        cleanup_old_jobs()
+                        continue
+                except:
+                    # No result - process was killed or crashed
+                    with state_lock:
+                        if job_id in jobs and jobs[job_id]["status"] == "solving":
+                            jobs[job_id]["status"] = "error"
+                            jobs[job_id]["completed_at"] = time.time()
+                            jobs[job_id]["error"] = "Solver process crashed"
+                    cleanup_old_jobs()
+                    continue
+
+            # Update job status
+            with state_lock:
+                if job_id in jobs:
+                    if aborted:
+                        # Keep aborted status, store best solution if we have one
+                        if jobs[job_id].get("best_solution"):
+                            jobs[job_id]["result"] = jobs[job_id]["best_solution"]
+                        app.logger.info(f"[{job_id}] Aborted by user")
+                    else:
                         jobs[job_id]["status"] = "complete"
                         jobs[job_id]["completed_at"] = time.time()
                         jobs[job_id]["result"] = output
@@ -217,25 +312,17 @@ def worker_thread():
                             "job_id": job_id,
                             "completed_at": time.time(),
                             "duration": round(time.time() - job["started_at"], 1),
-                            "score": result.score,
-                            "success": result.success,
+                            "score": output.get("score", 0),
+                            "success": output.get("success", False),
                             "ip": job.get("ip", "unknown"),
                         })
                         while len(completed_solves_history) > MAX_HISTORY:
                             completed_solves_history.pop(0)
 
-                app.logger.info(f"[{job_id}] Complete: success={result.success}, score={result.score}")
+                        app.logger.info(f"[{job_id}] Complete: success={output.get('success')}, score={output.get('score')}")
 
-            except Exception as e:
-                app.logger.error(f"[{job_id}] Error: {e}")
-                import traceback
-                traceback.print_exc()
-
-                with state_lock:
-                    if job_id in jobs:
-                        jobs[job_id]["status"] = "error"
-                        jobs[job_id]["completed_at"] = time.time()
-                        jobs[job_id]["error"] = str(e)
+                    # Clean up process reference
+                    jobs[job_id].pop("process", None)
 
             # Cleanup old jobs periodically
             cleanup_old_jobs()
@@ -378,6 +465,32 @@ def get_job(job_id):
 def best(job_id):
     """Get job status (alias for /job)."""
     return get_job(job_id)
+
+
+@app.route('/abort/<job_id>', methods=['POST'])
+def abort_job(job_id):
+    """Abort a running or queued job by killing the subprocess."""
+    with state_lock:
+        if job_id not in jobs:
+            return jsonify({"success": False, "error": "Job not found"}), 404
+
+        job = jobs[job_id]
+        if job["status"] in ("complete", "error", "aborted"):
+            return jsonify({"success": False, "error": f"Job already {job['status']}"}), 400
+
+        # Mark as aborted - the worker will pick this up
+        job["status"] = "aborted"
+        job["completed_at"] = time.time()
+
+        # Kill the subprocess immediately if it exists
+        proc = job.get("process")
+        if proc and proc.is_alive():
+            app.logger.info(f"[{job_id}] Killing subprocess")
+            proc.terminate()
+
+        app.logger.info(f"[{job_id}] Aborted by user")
+
+        return jsonify({"success": True, "message": "Job aborted"})
 
 
 @app.route('/solve', methods=['POST'])

@@ -440,17 +440,26 @@ class SolverOutput:
 class SolutionCallback(cp_model.CpSolverSolutionCallback):
     """Callback to capture intermediate solutions during solving."""
 
-    def __init__(self, variables: dict, on_solution=None, lazy_spy_cmd=False):
+    def __init__(self, variables: dict, on_solution=None, lazy_spy_cmd=False, abort_checker=None):
         super().__init__()
         self.variables = variables  # Dict with all the variable refs we need
         self.on_solution = on_solution
         self.lazy_spy_cmd = lazy_spy_cmd
+        self.abort_checker = abort_checker  # Function that returns True if we should abort
         self.solution_count = 0
         self.best_score = -1
         self.best_solution = None
         self.rejected_count = 0  # Track how many solutions failed SPY-CMD validation
+        self.aborted = False
 
     def on_solution_callback(self):
+        # Check for abort request
+        if self.abort_checker and self.abort_checker():
+            print("DEBUG: Abort requested, stopping search", flush=True)
+            self.aborted = True
+            self.StopSearch()
+            return
+
         self.solution_count += 1
         score = self.Value(self.variables['total_value'])
 
@@ -657,7 +666,7 @@ def diagnose_infeasibility(input_data: SolverInput) -> List[str]:
     return hints
 
 
-def solve_temple(input_data: SolverInput, on_solution=None, hints=None) -> SolverOutput:
+def solve_temple(input_data: SolverInput, on_solution=None, hints=None, abort_checker=None) -> SolverOutput:
     """
     Solve for optimal temple layout using CP-SAT.
 
@@ -665,6 +674,7 @@ def solve_temple(input_data: SolverInput, on_solution=None, hints=None) -> Solve
         input_data: Solver configuration and constraints
         on_solution: Optional callback called with each new best solution found
         hints: Optional list of hint dicts with {x, y, type, in_temple} for warm start
+        abort_checker: Optional function that returns True if solve should abort
 
     The model:
     - Variables: room_type[x,y], tier[x,y], in_temple[x,y], parent_dir[x,y]
@@ -1665,7 +1675,7 @@ def solve_temple(input_data: SolverInput, on_solution=None, hints=None) -> Solve
             'chain_names': chain_names,
         }
         print(f"DEBUG: Creating callback with lazy_spy_cmd={input_data.lazy_spy_cmd}", flush=True)
-        callback = SolutionCallback(callback_vars, on_solution, lazy_spy_cmd=input_data.lazy_spy_cmd)
+        callback = SolutionCallback(callback_vars, on_solution, lazy_spy_cmd=input_data.lazy_spy_cmd, abort_checker=abort_checker)
         status = solver.Solve(model, callback)
         print(f"DEBUG: Solve complete. lazy_spy_cmd={input_data.lazy_spy_cmd}, rejected={callback.rejected_count}", flush=True)
         if input_data.lazy_spy_cmd and callback.rejected_count > 0:

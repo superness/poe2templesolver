@@ -8,7 +8,7 @@ import './App.css';
 
 // API URL: /api in production (same server), localhost:5000 in dev
 const API_URL = import.meta.env.DEV ? 'http://localhost:5000' : '/api';
-const MAX_SOLVE_TIME = parseInt(import.meta.env.VITE_MAX_SOLVE_TIME || '120');
+const MAX_SOLVE_TIME = parseInt(import.meta.env.VITE_MAX_SOLVE_TIME || '3600');
 
 const DEFAULT_CONFIG: SolverConfig = {
   minSpymasters: 8,
@@ -37,7 +37,7 @@ function App() {
   const [apiStatus, setApiStatus] = useState<'unknown' | 'ok' | 'error'>('unknown');
   const pollIntervalRef = useRef<number | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [jobStatus, setJobStatus] = useState<'queued' | 'solving' | 'complete' | 'error' | null>(null);
+  const [jobStatus, setJobStatus] = useState<'queued' | 'solving' | 'complete' | 'error' | 'aborted' | null>(null);
   const [queuePosition, setQueuePosition] = useState<number>(0);
   const [roomValues, setRoomValues] = useState<RoomValues>(() => JSON.parse(JSON.stringify(DEFAULT_ROOM_VALUES)));
   const [showRoomValues, setShowRoomValues] = useState(false);
@@ -310,6 +310,29 @@ function App() {
     }
   }, [state, config, roomValues, chains, checkApi]);
 
+  const handleAbort = useCallback(async () => {
+    if (!jobId) return;
+
+    try {
+      const resp = await fetch(`${API_URL}/abort/${jobId}`, {
+        method: 'POST',
+      });
+      const data = await resp.json();
+      console.log('Abort response:', data);
+
+      if (data.success) {
+        setSolving(false);
+        setJobStatus('aborted');
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to abort:', e);
+    }
+  }, [jobId]);
+
   const handleExport = useCallback(() => {
     if (!result || !state) return;
 
@@ -535,13 +558,20 @@ function App() {
                 Keep existing rooms
               </label>
             </div>
-            <button className="solve-btn" onClick={handleSolve} disabled={solving}>
-              {solving
-                ? jobStatus === 'queued'
-                  ? `Queued #${queuePosition} (${elapsedSeconds.toFixed(0)}s)`
-                  : `Solving... ${elapsedSeconds.toFixed(1)}s${solutionsFound ? ` (${solutionsFound} found)` : ''}`
-                : 'Solve'}
-            </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button className="solve-btn" onClick={handleSolve} disabled={solving}>
+                {solving
+                  ? jobStatus === 'queued'
+                    ? `Queued #${queuePosition} (${elapsedSeconds.toFixed(0)}s)`
+                    : `Solving... ${elapsedSeconds.toFixed(1)}s${solutionsFound ? ` (${solutionsFound} found)` : ''}`
+                  : 'Solve'}
+              </button>
+              {solving && (
+                <button className="abort-btn" onClick={handleAbort} style={{ backgroundColor: '#c44', color: 'white' }}>
+                  Abort
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="room-values-section">
