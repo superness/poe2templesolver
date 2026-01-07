@@ -32,9 +32,11 @@ MAX_SOLVE_TIME = int(os.environ.get('MAX_SOLVE_TIME', 60))
 app = Flask(__name__)
 
 # CORS - configure for production
-allowed_origins = os.environ.get('ALLOWED_ORIGINS', '*')
+# Default allows GitHub Pages + localhost for dev
+default_origins = 'https://superness.github.io,http://localhost:5173,http://localhost:3000'
+allowed_origins = os.environ.get('ALLOWED_ORIGINS', default_origins)
 if allowed_origins != '*':
-    allowed_origins = allowed_origins.split(',')
+    allowed_origins = [o.strip() for o in allowed_origins.split(',')]
 CORS(app, origins=allowed_origins)
 
 # =============================================================================
