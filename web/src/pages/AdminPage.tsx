@@ -13,6 +13,13 @@ function getAdminKey(): string {
   return localStorage.getItem('admin-key') || '';
 }
 
+interface QueuedSolve {
+  job_id: string;
+  waiting_seconds: number;
+  config: { architect?: number[]; max_time?: number };
+  ip: string;
+}
+
 interface ActiveSolve {
   job_id: string;
   elapsed_seconds: number;
@@ -37,6 +44,7 @@ interface AdminData {
     max_concurrent: number;
     rate_limit_seconds: number;
   };
+  queued: QueuedSolve[];
   active_solves: ActiveSolve[];
   recent_completed: CompletedSolve[];
 }
@@ -165,6 +173,35 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
+
+          {/* Queued Jobs */}
+          {data.queued && data.queued.length > 0 && (
+            <div style={{ marginTop: 20, padding: 15, background: '#252525', borderRadius: 8 }}>
+              <h2 style={{ color: '#f8f', marginTop: 0 }}>
+                Queued ({data.queued.length})
+              </h2>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #444' }}>
+                    <th style={{ textAlign: 'left', padding: 8 }}>Position</th>
+                    <th style={{ textAlign: 'left', padding: 8 }}>Job ID</th>
+                    <th style={{ textAlign: 'left', padding: 8 }}>IP</th>
+                    <th style={{ textAlign: 'right', padding: 8 }}>Waiting</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.queued.map((job, idx) => (
+                    <tr key={job.job_id} style={{ borderBottom: '1px solid #333' }}>
+                      <td style={{ padding: 8, color: '#f8f' }}>#{idx + 1}</td>
+                      <td style={{ padding: 8, color: '#8cf' }}>{job.job_id}</td>
+                      <td style={{ padding: 8, color: '#888' }}>{job.ip}</td>
+                      <td style={{ padding: 8, textAlign: 'right' }}>{formatDuration(job.waiting_seconds)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Active Solves */}
           <div style={{ marginTop: 20, padding: 15, background: '#252525', borderRadius: 8 }}>

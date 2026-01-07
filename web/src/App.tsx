@@ -35,6 +35,9 @@ function App() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [apiStatus, setApiStatus] = useState<'unknown' | 'ok' | 'error'>('unknown');
   const pollIntervalRef = useRef<number | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState<'queued' | 'solving' | 'complete' | 'error' | null>(null);
+  const [queuePosition, setQueuePosition] = useState<number>(0);
   const [roomValues, setRoomValues] = useState<RoomValues>(() => JSON.parse(JSON.stringify(DEFAULT_ROOM_VALUES)));
   const [showRoomValues, setShowRoomValues] = useState(false);
   const [chainPreset, setChainPreset] = useState<string>('none');
@@ -110,69 +113,110 @@ function App() {
     checkApi();
   }, [checkApi]);
 
-  // Poll for best solution while solving
+  // Poll job status while solving
   useEffect(() => {
-    if (solving) {
-      setElapsedSeconds(0);
-      setSolutionsFound(0);
+    if (!jobId || !solving) return;
 
-      const pollBest = async () => {
-        try {
-          const resp = await fetch(`${API_URL}/best`);
-          const data = await resp.json();
+    const pollJob = async () => {
+      try {
+        const resp = await fetch(`${API_URL}/job/${jobId}`);
+        const data = await resp.json();
 
-          if (data.elapsed_seconds !== undefined) {
-            setElapsedSeconds(data.elapsed_seconds);
-          }
+        setJobStatus(data.status);
+
+        if (data.status === 'queued') {
+          setQueuePosition(data.queue_position || 0);
+          setElapsedSeconds(data.waiting_seconds || 0);
+        } else if (data.status === 'solving') {
+          setQueuePosition(0);
+          setElapsedSeconds(data.elapsed_seconds || 0);
 
           // Update with intermediate solution if available
-          if (data.solution) {
-            setSolutionsFound(data.solution.solution_count || 0);
+          if (data.best_solution) {
+            setSolutionsFound(data.best_solution.solution_count || 0);
 
-            // Convert to SolverResult format for display
             const intermediateSolution: SolverResult = {
               success: true,
               optimal: false,
-              score: data.solution.score,
-              rooms: data.solution.rooms.map((r: { type: string; tier: number; x: number; y: number; chain?: number }) => ({
+              score: data.best_solution.score,
+              rooms: data.best_solution.rooms.map((r: { type: string; tier: number; x: number; y: number; chain?: number }) => ({
                 type: r.type as Room['type'],
                 tier: r.tier as Room['tier'],
                 position: { x: r.x, y: r.y },
                 chain: r.chain,
               })),
-              paths: data.solution.paths.map((p: { x: number; y: number; chain?: number }) => ({ x: p.x, y: p.y, chain: p.chain })),
+              paths: data.best_solution.paths.map((p: { x: number; y: number; chain?: number }) => ({ x: p.x, y: p.y, chain: p.chain })),
               stats: {
                 status: 'SEARCHING',
                 timeSeconds: data.elapsed_seconds || 0,
               },
-              chainNames: data.solution.chain_names,
+              chainNames: data.best_solution.chain_names,
             };
             setResult(intermediateSolution);
 
-            // Update edges
-            const solverEdges: Edge[] = (data.solution.edges || []).map((e: { from: { x: number; y: number }; to: { x: number; y: number } }) => ({
+            const solverEdges: Edge[] = (data.best_solution.edges || []).map((e: { from: { x: number; y: number }; to: { x: number; y: number } }) => ({
               from: { x: e.from.x, y: e.from.y },
               to: { x: e.to.x, y: e.to.y },
             }));
             setEdges(solverEdges);
           }
-        } catch {
-          // Ignore errors during polling
-        }
-      };
+        } else if (data.status === 'complete') {
+          // Final result
+          const finalData = data.result;
+          const solution: SolverResult = {
+            success: finalData.success,
+            optimal: finalData.optimal,
+            score: finalData.score,
+            rooms: finalData.rooms.map((r: { type: string; tier: number; x: number; y: number; chain?: number }) => ({
+              type: r.type as Room['type'],
+              tier: r.tier as Room['tier'],
+              position: { x: r.x, y: r.y },
+              chain: r.chain,
+            })),
+            paths: finalData.paths.map((p: { x: number; y: number; chain?: number }) => ({ x: p.x, y: p.y, chain: p.chain })),
+            stats: {
+              status: finalData.stats?.status || 'Complete',
+              timeSeconds: finalData.stats?.time_seconds || data.duration || 0,
+            },
+            error: finalData.error,
+            chainNames: finalData.chain_names,
+          };
 
-      // Poll immediately and then every 500ms
-      pollBest();
-      pollIntervalRef.current = window.setInterval(pollBest, 500);
+          const solverEdges: Edge[] = (finalData.edges || []).map((e: { from: { x: number; y: number }; to: { x: number; y: number } }) => ({
+            from: { x: e.from.x, y: e.from.y },
+            to: { x: e.to.x, y: e.to.y },
+          }));
+          setEdges(solverEdges);
+          setResult(solution);
+          setSolving(false);
+          setJobId(null);
+          setJobStatus(null);
 
-      return () => {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
+          if (!solution.success) {
+            setError(solution.error || 'Solver failed');
+          }
+        } else if (data.status === 'error') {
+          setError(data.error || 'Solver error');
+          setSolving(false);
+          setJobId(null);
+          setJobStatus(null);
         }
-      };
-    }
-  }, [solving]);
+      } catch {
+        // Ignore transient errors during polling
+      }
+    };
+
+    // Poll immediately and then every 500ms
+    pollJob();
+    pollIntervalRef.current = window.setInterval(pollJob, 500);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [jobId, solving]);
 
   const handleImport = useCallback(() => {
     setError(null);
@@ -198,13 +242,16 @@ function App() {
     if (!state) return;
 
     setError(null);
-    setSolving(true);
+    setResult(null);
+    setElapsedSeconds(0);
+    setSolutionsFound(0);
+    setQueuePosition(0);
+    setJobStatus(null);
 
     try {
       // Check API is available
       const apiOk = await checkApi();
       if (!apiOk) {
-        setSolving(false);
         return;
       }
 
@@ -232,7 +279,7 @@ function App() {
         existing_paths: state.paths.map(p => [p.x, p.y]),
       };
 
-      console.log('Sending to solver:', requestBody);
+      console.log('Submitting job to solver:', requestBody);
 
       const resp = await fetch(`${API_URL}/solve`, {
         method: 'POST',
@@ -241,45 +288,22 @@ function App() {
       });
 
       const data = await resp.json();
-      console.log('Solver response:', data);
+      console.log('Job submitted:', data);
 
-      // Convert Python response to our types
-      const solution: SolverResult = {
-        success: data.success,
-        optimal: data.optimal,
-        score: data.score,
-        rooms: data.rooms.map((r: { type: string; tier: number; x: number; y: number; chain?: number }) => ({
-          type: r.type as Room['type'],
-          tier: r.tier as Room['tier'],
-          position: { x: r.x, y: r.y },
-          chain: r.chain,
-        })),
-        paths: data.paths.map((p: { x: number; y: number; chain?: number }) => ({ x: p.x, y: p.y, chain: p.chain })),
-        stats: {
-          status: data.stats?.status || 'Unknown',
-          timeSeconds: data.stats?.time_seconds || 0,
-        },
-        error: data.error,
-        chainNames: data.chain_names,
-      };
-
-      // Parse edges from solver response
-      const solverEdges: Edge[] = (data.edges || []).map((e: { from: { x: number; y: number }; to: { x: number; y: number } }) => ({
-        from: { x: e.from.x, y: e.from.y },
-        to: { x: e.to.x, y: e.to.y },
-      }));
-      setEdges(solverEdges);
-      console.log('Solver returned', solverEdges.length, 'edges');
-
-      setResult(solution);
-
-      if (!solution.success) {
-        setError(solution.error || 'Solver failed');
+      if (!data.success && !data.job_id) {
+        // Immediate error (rate limit, queue full, etc.)
+        setError(data.error || 'Failed to submit job');
+        return;
       }
+
+      // Job submitted - start polling
+      setJobId(data.job_id);
+      setJobStatus(data.status || 'queued');
+      setQueuePosition(data.queue_position || 0);
+      setSolving(true);
+
     } catch (e) {
-      setError(`Solve failed: ${e}`);
-    } finally {
-      setSolving(false);
+      setError(`Failed to submit job: ${e}`);
     }
   }, [state, config, roomValues, chains, checkApi]);
 
@@ -509,7 +533,11 @@ function App() {
               </label>
             </div>
             <button className="solve-btn" onClick={handleSolve} disabled={solving}>
-              {solving ? `Solving... ${elapsedSeconds.toFixed(1)}s (${solutionsFound} found)` : 'Solve'}
+              {solving
+                ? jobStatus === 'queued'
+                  ? `Queued #${queuePosition} (${elapsedSeconds.toFixed(0)}s)`
+                  : `Solving... ${elapsedSeconds.toFixed(1)}s${solutionsFound ? ` (${solutionsFound} found)` : ''}`
+                : 'Solve'}
             </button>
           </div>
 
