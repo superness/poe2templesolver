@@ -386,12 +386,15 @@ button:disabled {
 .config-grid label.checkbox {
   flex-direction: row;
   align-items: center;
+  justify-content: flex-start;
   gap: 10px;
+  padding-top: 22px; /* Align with input fields that have labels above */
 }
 
 .config-grid input[type='checkbox'] {
   width: 18px;
   height: 18px;
+  flex-shrink: 0;
 }
 
 .solve-btn {
