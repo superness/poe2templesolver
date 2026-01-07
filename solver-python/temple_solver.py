@@ -1503,8 +1503,10 @@ def solve_temple(input_data: SolverInput, on_solution=None) -> SolverOutput:
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = input_data.max_time_seconds
-    solver.parameters.num_search_workers = 8  # Parallel search
+    solver.parameters.num_search_workers = 4  # Match vCPU count, don't over-subscribe
     solver.parameters.log_search_progress = True
+    solver.parameters.linearization_level = 2  # Better LP relaxation for tighter bounds
+    solver.parameters.cp_model_presolve = True  # Aggressive presolve
 
     # Create solution callback if requested
     callback = None
