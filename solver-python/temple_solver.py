@@ -1218,13 +1218,126 @@ def solve_temple(input_data: SolverInput, on_solution=None) -> SolverOutput:
                     model.Add(sum(neighbor_is_path) >= 1).OnlyEnforceIf(is_requires_path)
 
     # =========================================================================
-    # LINEAR CHAIN BAN: SPY-CMD cannot be in linear chain (disabled for now)
+    # LINEAR CHAIN BAN: SPY-CMD cannot be in linear chain
     # =========================================================================
-    # NOTE: This rule is complex and unclear. The Sulozor message says
-    # "Spymaster cannot be in a linear chain with Commander" but the exact
-    # meaning is ambiguous. Disabling for now as it adds significant model
-    # complexity without clear benefit.
-    # TODO: Verify exact rule semantics with Sulozor testing
+    # Rule: Spymaster cannot be in a linear chain with Commander
+    # "Linear chain" means all intermediate nodes have exactly 2 connections
+    # Branching (junction with 3+ connections) between them is allowed
+    #
+    # Implementation: For each cell, if it's between SPY and CMD (both adjacent),
+    # it must have 3+ total connections (be a junction, not a linear link)
+
+    spy_idx = ROOM_TYPE_TO_IDX.get('SPYMASTER')
+    cmd_idx = ROOM_TYPE_TO_IDX.get('COMMANDER')
+
+    if spy_idx is not None and cmd_idx is not None:
+        # First: SPY and CMD cannot be directly adjacent
+        for x in range(1, GRID_SIZE + 1):
+            for y in range(1, GRID_SIZE + 1):
+                pos = (x, y)
+                for nx, ny in get_neighbors(x, y):
+                    neighbor = (nx, ny)
+                    if neighbor <= pos:  # Avoid duplicate constraints
+                        continue
+
+                    # Forbid SPY-CMD direct adjacency
+                    pos_is_spy = model.NewBoolVar(f'spy_cmd_direct_{x}_{y}_{nx}_{ny}_spy')
+                    pos_is_cmd = model.NewBoolVar(f'spy_cmd_direct_{x}_{y}_{nx}_{ny}_cmd')
+                    nb_is_spy = model.NewBoolVar(f'spy_cmd_direct_{x}_{y}_{nx}_{ny}_nb_spy')
+                    nb_is_cmd = model.NewBoolVar(f'spy_cmd_direct_{x}_{y}_{nx}_{ny}_nb_cmd')
+
+                    model.Add(room_type[pos] == spy_idx).OnlyEnforceIf(pos_is_spy)
+                    model.Add(room_type[pos] != spy_idx).OnlyEnforceIf(pos_is_spy.Not())
+                    model.Add(room_type[pos] == cmd_idx).OnlyEnforceIf(pos_is_cmd)
+                    model.Add(room_type[pos] != cmd_idx).OnlyEnforceIf(pos_is_cmd.Not())
+                    model.Add(room_type[neighbor] == spy_idx).OnlyEnforceIf(nb_is_spy)
+                    model.Add(room_type[neighbor] != spy_idx).OnlyEnforceIf(nb_is_spy.Not())
+                    model.Add(room_type[neighbor] == cmd_idx).OnlyEnforceIf(nb_is_cmd)
+                    model.Add(room_type[neighbor] != cmd_idx).OnlyEnforceIf(nb_is_cmd.Not())
+
+                    # Forbid: pos=SPY and neighbor=CMD
+                    spy_cmd_adjacent = model.NewBoolVar(f'spy_cmd_adj_{x}_{y}_{nx}_{ny}')
+                    model.AddBoolAnd([pos_is_spy, nb_is_cmd]).OnlyEnforceIf(spy_cmd_adjacent)
+                    model.AddBoolOr([pos_is_spy.Not(), nb_is_cmd.Not()]).OnlyEnforceIf(spy_cmd_adjacent.Not())
+                    model.Add(spy_cmd_adjacent == 0)
+
+                    # Forbid: pos=CMD and neighbor=SPY
+                    cmd_spy_adjacent = model.NewBoolVar(f'cmd_spy_adj_{x}_{y}_{nx}_{ny}')
+                    model.AddBoolAnd([pos_is_cmd, nb_is_spy]).OnlyEnforceIf(cmd_spy_adjacent)
+                    model.AddBoolOr([pos_is_cmd.Not(), nb_is_spy.Not()]).OnlyEnforceIf(cmd_spy_adjacent.Not())
+                    model.Add(cmd_spy_adjacent == 0)
+
+        # Second: For SPY-X-CMD pattern (distance 2), X must be a junction (3+ connections)
+        # This prevents linear chains like SPY-GARRISON-CMD
+        for x in range(1, GRID_SIZE + 1):
+            for y in range(1, GRID_SIZE + 1):
+                pos = (x, y)
+                neighbors = get_neighbors(x, y)
+
+                if len(neighbors) < 2:
+                    continue
+
+                # Check if this cell (pos) is between a SPY and CMD
+                for i, n1 in enumerate(neighbors):
+                    for n2 in neighbors[i+1:]:
+                        # Is n1 a SPY and n2 a CMD (or vice versa)?
+                        n1_is_spy = model.NewBoolVar(f'linban_n1spy_{x}_{y}_{n1}_{n2}')
+                        n1_is_cmd = model.NewBoolVar(f'linban_n1cmd_{x}_{y}_{n1}_{n2}')
+                        n2_is_spy = model.NewBoolVar(f'linban_n2spy_{x}_{y}_{n1}_{n2}')
+                        n2_is_cmd = model.NewBoolVar(f'linban_n2cmd_{x}_{y}_{n1}_{n2}')
+
+                        model.Add(room_type[n1] == spy_idx).OnlyEnforceIf(n1_is_spy)
+                        model.Add(room_type[n1] != spy_idx).OnlyEnforceIf(n1_is_spy.Not())
+                        model.Add(room_type[n1] == cmd_idx).OnlyEnforceIf(n1_is_cmd)
+                        model.Add(room_type[n1] != cmd_idx).OnlyEnforceIf(n1_is_cmd.Not())
+                        model.Add(room_type[n2] == spy_idx).OnlyEnforceIf(n2_is_spy)
+                        model.Add(room_type[n2] != spy_idx).OnlyEnforceIf(n2_is_spy.Not())
+                        model.Add(room_type[n2] == cmd_idx).OnlyEnforceIf(n2_is_cmd)
+                        model.Add(room_type[n2] != cmd_idx).OnlyEnforceIf(n2_is_cmd.Not())
+
+                        # Pattern 1: n1=SPY, n2=CMD, both connected to pos
+                        # Pattern 2: n1=CMD, n2=SPY, both connected to pos
+                        # In either case, pos must have 3+ connections (be a junction)
+
+                        conn_n1 = connected[pos].get(n1)
+                        conn_n2 = connected[pos].get(n2)
+
+                        if conn_n1 is None or conn_n2 is None:
+                            continue
+
+                        # Count total connections for this cell
+                        total_connections = []
+                        for neighbor in neighbors:
+                            if neighbor in connected[pos]:
+                                total_connections.append(connected[pos][neighbor])
+
+                        if len(total_connections) < 3:
+                            # Cell can have at most 2 connections, so it can never be a junction
+                            # Just forbid the SPY-X-CMD pattern entirely for this cell
+                            pattern1 = model.NewBoolVar(f'linban_p1_{x}_{y}_{n1}_{n2}')
+                            model.AddBoolAnd([n1_is_spy, n2_is_cmd, conn_n1, conn_n2]).OnlyEnforceIf(pattern1)
+                            model.Add(pattern1 == 0)
+
+                            pattern2 = model.NewBoolVar(f'linban_p2_{x}_{y}_{n1}_{n2}')
+                            model.AddBoolAnd([n1_is_cmd, n2_is_spy, conn_n1, conn_n2]).OnlyEnforceIf(pattern2)
+                            model.Add(pattern2 == 0)
+                        else:
+                            # Cell can potentially be a junction - require 3+ connections if SPY-X-CMD
+                            is_between_spy_cmd = model.NewBoolVar(f'linban_between_{x}_{y}_{n1}_{n2}')
+
+                            # is_between if (n1=SPY,n2=CMD) OR (n1=CMD,n2=SPY), both connected
+                            spy_cmd_pattern = model.NewBoolVar(f'linban_sc_{x}_{y}')
+                            cmd_spy_pattern = model.NewBoolVar(f'linban_cs_{x}_{y}')
+                            model.AddBoolAnd([n1_is_spy, n2_is_cmd, conn_n1, conn_n2]).OnlyEnforceIf(spy_cmd_pattern)
+                            model.AddBoolOr([n1_is_spy.Not(), n2_is_cmd.Not(), conn_n1.Not(), conn_n2.Not()]).OnlyEnforceIf(spy_cmd_pattern.Not())
+                            model.AddBoolAnd([n1_is_cmd, n2_is_spy, conn_n1, conn_n2]).OnlyEnforceIf(cmd_spy_pattern)
+                            model.AddBoolOr([n1_is_cmd.Not(), n2_is_spy.Not(), conn_n1.Not(), conn_n2.Not()]).OnlyEnforceIf(cmd_spy_pattern.Not())
+
+                            model.AddBoolOr([spy_cmd_pattern, cmd_spy_pattern]).OnlyEnforceIf(is_between_spy_cmd)
+                            model.AddBoolAnd([spy_cmd_pattern.Not(), cmd_spy_pattern.Not()]).OnlyEnforceIf(is_between_spy_cmd.Not())
+
+                            # If between SPY and CMD, must have 3+ total connections
+                            model.Add(sum(total_connections) >= 3).OnlyEnforceIf(is_between_spy_cmd)
 
     # =========================================================================
     # UNIQUE ROOMS

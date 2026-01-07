@@ -351,7 +351,7 @@ button:disabled {
 
 .config-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 15px;
   margin-bottom: 20px;
 }
@@ -362,6 +362,8 @@ button:disabled {
   gap: 5px;
   color: #aaa;
   font-size: 14px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .config-grid input[type='number'] {
@@ -372,6 +374,7 @@ button:disabled {
   border-radius: 4px;
   color: #fff;
   width: 100%;
+  box-sizing: border-box;
   transition: border-color 0.2s;
 }
 

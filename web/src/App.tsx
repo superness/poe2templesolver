@@ -18,9 +18,9 @@ const DEFAULT_CONFIG: SolverConfig = {
   maxEndpoints: 3,  // 2-3 endpoints like the great temples
   maxTimeSeconds: 60,
   lockExisting: true,
-  junctionPenalty: 10,  // Points deducted per room with 3+ neighbors
+  junctionPenalty: 100,  // Points deducted per room with 3+ neighbors
   maxNeighbors: 4,      // Hard limit (2 = strict snake, 4 = no limit)
-  emptyPenalty: 0,      // Points deducted per empty cell (0 = allow empty)
+  emptyPenalty: 100,      // Points deducted per empty cell (encourages filling)
 };
 
 function App() {
