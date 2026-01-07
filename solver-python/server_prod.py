@@ -24,6 +24,12 @@ MAX_CONCURRENT_SOLVES = int(os.environ.get('MAX_CONCURRENT_SOLVES', 1))
 MAX_QUEUE_SIZE = int(os.environ.get('MAX_QUEUE_SIZE', 10))
 RATE_LIMIT_SECONDS = int(os.environ.get('RATE_LIMIT_SECONDS', 30))
 MAX_SOLVE_TIME = int(os.environ.get('MAX_SOLVE_TIME', 60))
+MAX_HISTORY = 50  # Keep last N completed solves
+
+# Server stats
+SERVER_START_TIME = time.time()
+total_solves = 0
+completed_solves = []  # List of {job_id, completed_at, duration, score, success}
 
 # =============================================================================
 # App Setup
@@ -127,6 +133,37 @@ def status():
         })
 
 
+@app.route('/admin', methods=['GET'])
+def admin():
+    """Admin endpoint - detailed server stats and active solves."""
+    now = time.time()
+    with state_lock:
+        # Build active solves list with details
+        active_list = []
+        for job_id, job in active_solves.items():
+            elapsed = now - job["started_at"]
+            best = job.get("best_solution")
+            active_list.append({
+                "job_id": job_id,
+                "started_at": job["started_at"],
+                "elapsed_seconds": round(elapsed, 1),
+                "config": job.get("config", {}),
+                "best_score": best.get("score") if best else None,
+                "ip": job.get("ip", "unknown"),
+            })
+
+        return jsonify({
+            "server": {
+                "uptime_seconds": round(now - SERVER_START_TIME, 1),
+                "total_solves": total_solves,
+                "max_concurrent": MAX_CONCURRENT_SOLVES,
+                "rate_limit_seconds": RATE_LIMIT_SECONDS,
+            },
+            "active_solves": active_list,
+            "recent_completed": list(reversed(completed_solves[-20:])),  # Last 20
+        })
+
+
 @app.route('/best/<job_id>', methods=['GET'])
 def best(job_id):
     """Get the current best solution for a specific job."""
@@ -210,11 +247,14 @@ def solve():
         app.logger.info(f"[{job_id}] Starting solve: architect={architect}, time_limit={max_time}s")
 
         # Register job
+        job_start_time = time.time()
+        client_ip = get_client_ip()
         with state_lock:
             active_solves[job_id] = {
-                "started_at": time.time(),
-                "config": {"architect": architect},
+                "started_at": job_start_time,
+                "config": {"architect": architect, "max_time": max_time},
                 "best_solution": None,
+                "ip": client_ip,
             }
 
         # Callback to store intermediate solutions
@@ -230,9 +270,23 @@ def solve():
             result = solve_temple(solver_input, on_solution=on_new_solution)
         finally:
             solve_semaphore.release()
-            # Clean up job
+            # Clean up job and record completion
+            global total_solves
             with state_lock:
-                active_solves.pop(job_id, None)
+                job_info = active_solves.pop(job_id, None)
+                total_solves += 1
+                # Record completion
+                completed_solves.append({
+                    "job_id": job_id,
+                    "completed_at": time.time(),
+                    "duration": round(time.time() - job_start_time, 1),
+                    "score": result.score if result else None,
+                    "success": result.success if result else False,
+                    "ip": client_ip,
+                })
+                # Trim history
+                while len(completed_solves) > MAX_HISTORY:
+                    completed_solves.pop(0)
 
         # Build response
         paths_out = []

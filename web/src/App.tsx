@@ -3,6 +3,7 @@ import type { TempleState, SolverConfig, SolverResult, Room, Edge, RoomValues, R
 import { GRID_SIZE, FOYER_POS, DEFAULT_ROOM_VALUES, CHAIN_PRESETS } from './solver/types';
 import { parseSulozorUrl, exportToSulozorUrl } from './lib/sulozor-parser';
 import { ROOM_ABBREV } from './solver/room-rules';
+import AdminPage from './pages/AdminPage';
 import './App.css';
 
 // API URL: /api in production (same server), localhost:5000 in dev
@@ -300,6 +301,12 @@ function App() {
   const displayState = result
     ? { architect: state!.architect, rooms: result.rooms, paths: result.paths }
     : state;
+
+  // Check if admin page requested
+  const isAdmin = window.location.hash === '#/admin' || new URLSearchParams(window.location.search).get('admin') === 'true';
+  if (isAdmin) {
+    return <AdminPage />;
+  }
 
   // Generate shareable URL with temple data (uses result if available)
   const getShareUrl = () => {
